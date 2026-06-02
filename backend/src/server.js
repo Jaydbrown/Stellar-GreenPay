@@ -4,6 +4,8 @@
 "use strict";
 
 const express   = require("express");
+const cookieParser = require("cookie-parser");
+const csurf     = require("csurf");
 const helmet    = require("helmet");
 const morgan    = require("morgan");
 const rateLimit = require("express-rate-limit");
@@ -32,6 +34,16 @@ if (process.env.NODE_ENV !== "production") {
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(express.json({ limit: "20kb" }));
+app.use(cookieParser());
+app.use(csurf({
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "none",
+    path: "/",
+  },
+  ignoreMethods: ["GET", "HEAD", "OPTIONS"],
+}));
 
 const origins = getAllowedOrigins();
 app.use(...createCorsMiddleware(origins));
@@ -57,7 +69,7 @@ app.use("/api/jobs",           require("./routes/jobs"));
 app.use("/api/stats",          require("./routes/stats"));
 app.use("/api/impact",         require("./routes/impact"));
 app.use("/api/ratings",        require("./routes/ratings"));
-app.use("/api/notifications",  require("./routes/notifications"));
+app.use("/api/admin",          require("./routes/admin"));
 
 app.use((req, res) => res.status(404).json({ error: `${req.method} ${req.path} not found` }));
 app.use((err, req, res, next) => {
@@ -84,9 +96,11 @@ async function startServer() {
   }
 }
 
-startServer().catch((err) => {
-  console.error("[Startup Error]", err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error("[Startup Error]", err.message);
+    process.exit(1);
+  });
+}
 
 module.exports = app;
