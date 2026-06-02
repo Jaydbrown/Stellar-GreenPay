@@ -22,18 +22,22 @@ router.post("/login", loginLimiter, (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  const token = signToken({ role: "admin", sub: adminUser }, TOKEN_EXPIRY);
-  const refreshToken = signToken({ role: "admin", sub: adminUser, type: "refresh" }, REFRESH_EXPIRY);
+    let query = `
+      SELECT id, actor, action, target_type, target_id, metadata, ip_address, created_at
+      FROM admin_audit_log
+    `;
+    if (where.length) {
+      query += " WHERE " + where.join(" AND ");
+    }
+    query += " ORDER BY created_at DESC LIMIT $" + (values.length - 1) + " OFFSET $" + values.length;
 
-  res.json({
-    success: true,
-    data: {
-      token,
-      refreshToken,
-      expiresIn: 3600,
-    },
-  });
-});
+    const result = await pool.query(query, values);
+
+    let countQuery = "SELECT COUNT(*) AS total FROM admin_audit_log";
+    if (where.length) {
+      countQuery += " WHERE " + where.join(" AND ");
+    }
+    const countResult = await pool.query(countQuery, values.slice(0, -2));
 
 router.post("/refresh", (req, res) => {
   const { refreshToken } = req.body || {};
